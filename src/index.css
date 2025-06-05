@@ -7,16 +7,17 @@ html {
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', sans-serif;
+  margin: 0; /* Critical: Removes default browser margins */
+  padding: 0; /* Critical: Removes default browser padding */
+  font-family: 'Inter', sans-serif; /* Default font for the page */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f3f4f6; /* Tailwind's gray-100 for the overall page background */
-  min-height: 100vh;
+  min-height: 100vh; /* Ensure body takes at least full viewport height */
 }
 
 #root {
-  width: 100%;
-  min-height: 100vh;
+  width: 100%; /* Make #root span the full width of the body */
+  min-height: 100vh; /* Ensure #root can also fill viewport height */
+  /* NO flex, NO grid, NO margin: auto, NO max-width here. Let it be a plain full-width block. */
 }

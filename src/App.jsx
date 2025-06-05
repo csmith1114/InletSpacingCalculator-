@@ -2,12 +2,69 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { PlusCircle, Trash2, Sparkles, ChevronsUpDown } from 'lucide-react'; // Import icons
 
 // Constants for Rainfall Intensity Coefficients (from LA DOTD Hydraulics Manual, Figures 3.4-3, 3.4-4, 3.4-5)
-const RAINFALL_COEFFICIENTS = { /* ...your coefficients... */ };
-const formatNumber = (num, fixed = 2) => { /* ...your function... */ };
-const calculateTC = (HL, C, S) => { /* ...your function... */ };
-const calculateIntensity = (tcMinutes, region, returnPeriod) => { /* ...your function... */ };
-const calculateQ = (intensity, sumAC) => { /* ...your function... */ };
-const calculateWidthOfFlooding = (qTotal, longitudinalSlopePercent, crossSlope, n = 0.015) => { /* ...your function... */ };
+const RAINFALL_COEFFICIENTS = {
+  'Region 1': {
+    '2-Year': { a: 2.815, b: 0.282, c: -0.899 },
+    '5-Year': { a: 3.536, b: 0.330, c: -0.851 },
+    '10-Year': { a: 4.016, b: 0.347, c: -0.826 },
+    '25-Year': { a: 4.611, b: 0.346, c: -0.798 },
+    '50-Year': { a: 5.097, b: 0.351, c: -0.783 },
+    '100-Year': { a: 5.487, b: 0.334, c: -0.759 },
+  },
+  'Region 2': {
+    '2-Year': { a: 2.375, b: 0.221, c: -0.922 },
+    '5-Year': { a: 2.976, b: 0.251, c: -0.865 },
+    '10-Year': { a: 3.447, b: 0.277, c: -0.839 },
+    '25-Year': { a: 4.092, b: 0.297, c: -0.808 },
+    '50-Year': { a: 4.640, b: 0.318, c: -0.791 },
+    '100-Year': { a: 5.195, b: 0.335, c: -0.771 },
+  },
+  'Region 3': {
+    '2-Year': { a: 2.138, b: 0.192, c: -0.891 },
+    '5-Year': { a: 2.701, b: 0.220, c: -0.847 },
+    '10-Year': { a: 3.086, b: 0.231, c: -0.826 },
+    '25-Year': { a: 3.592, b: 0.238, c: -0.809 },
+    '50-Year': { a: 3.934, b: 0.227, c: -0.794 },
+    '100-Year': { a: 4.286, b: 0.223, c: -0.780 },
+  },
+};
+
+// Helper function to format numbers to a fixed decimal place
+const formatNumber = (num, fixed = 2) => {
+  if (typeof num !== 'number' || isNaN(num)) return '';
+  return num.toFixed(fixed);
+};
+
+// Calculations Utility Functions
+const calculateTC = (HL, C, S) => {
+  if (HL <= 0 || C <= 0 || S <= 0) return 0;
+  const tc = 0.7039 * Math.pow(HL, 0.3917) * Math.pow(C, -1.1309) * Math.pow(S, -0.1985);
+  return Math.max(tc, 5);
+};
+
+const calculateIntensity = (tcMinutes, region, returnPeriod) => {
+  const coeffs = RAINFALL_COEFFICIENTS[region]?.[returnPeriod];
+  if (!coeffs || tcMinutes <= 0) return 0;
+  const D = tcMinutes / 60;
+  const I = coeffs.a * Math.pow(D + coeffs.b, coeffs.c);
+  return I;
+};
+
+const calculateQ = (intensity, sumAC) => {
+  if (intensity <= 0 || sumAC <= 0) return 0;
+  return intensity * sumAC;
+};
+
+const calculateWidthOfFlooding = (qTotal, longitudinalSlopePercent, crossSlope, n = 0.015) => {
+  if (qTotal <= 0 || longitudinalSlopePercent <= 0 || crossSlope <= 0 || n <= 0) return 0;
+  const S_longitudinal = longitudinalSlopePercent / 100;
+  const numerator = qTotal * n;
+  const denominator = 0.56 * Math.pow(crossSlope, 5 / 3) * Math.pow(S_longitudinal, 1 / 2);
+  if (denominator === 0) return 0;
+  const T = Math.pow(numerator / denominator, 3 / 8);
+  return T;
+};
+
 
 // Custom Modal Component for messages
 const Modal = ({ message, onClose }) => {
@@ -132,17 +189,7 @@ const ProfileDefinition = ({ profile, setProfile, addPVI, removePVI, displayMess
             g_in_percent, g_out_percent, A_percent, lowHighPoint
         };
     });
-    // ... (rest of drawProfile logic, unchanged from previous working version) ...
-    // This includes: minOverallStation/maxOverallStation calculations,
-    // profilePointsForDrawing population, uniqueProfilePoints filtering,
-    // scaling calculations, and all ctx drawing commands for lines, markers, and labels.
-    // Ensure this entire block is present and correct.
-    // For brevity, I'm omitting the ~200 lines of canvas drawing code here,
-    // but it should be IDENTICAL to the version that was working for you before.
-    // Make sure this section is copied correctly from your last working `ProfileDefinition`.
 
-    // --- START of previously omitted drawProfile logic ---
-    // (Copied from the provided full code for completeness)
      let minOverallStation = 0;
      let maxOverallStation = 1000;
 
@@ -406,7 +453,6 @@ const ProfileDefinition = ({ profile, setProfile, addPVI, removePVI, displayMess
          }
      }
      ctx.textAlign = 'left';
-    // --- END of previously omitted drawProfile logic ---
 
   }, [profile]);
 
@@ -432,9 +478,9 @@ const ProfileDefinition = ({ profile, setProfile, addPVI, removePVI, displayMess
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6"> {/* Card styling for this section */}
-      <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">1. Profile Definition</h2> {/* Increased mb */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"> {/* Increased gap */}
+    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8"> {/* Card styling for this section */}
+      <h2 className="text-2xl font-semibold text-gray-800 mb-6 pb-3 border-b border-gray-200">1. Profile Definition</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
           <label htmlFor="beginningGrade" className="block text-sm font-medium text-gray-700 mb-1">Beginning Grade (%)</label>
           <input type="number" step="any" id="beginningGrade" name="beginningGrade" value={profile.beginningGrade} onChange={handleProfileChange} className={formInputClasses} />
@@ -445,9 +491,9 @@ const ProfileDefinition = ({ profile, setProfile, addPVI, removePVI, displayMess
         </div>
       </div>
 
-      <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-4">PVI Points</h3> {/* Adjusted color and margin */}
+      <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-4">PVI Points</h3>
       {profile.pvis.map((pvi, index) => (
-        <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg mb-4 items-end border border-gray-200"> {/* Slightly enhanced PVI card */}
+        <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg mb-4 items-end border border-gray-200">
           <p className="col-span-full text-md sm:text-lg font-semibold text-blue-600 mb-2">PVI {index + 1}</p>
           <div>
             <label className="block text-xs font-medium text-gray-600">Station</label>
@@ -519,25 +565,83 @@ const InletInput = ({ inlet, index, handleInletChange, removeInlet, rainfallRegi
     return isLowPoint ? (manualWidthNum || 0) : widthOfFloodingCalculated;
   }, [isLowPoint, manualWidthOfFlooding, widthOfFloodingCalculated]);
 
-  const suggestInletType = async () => { /* ... same as previous ... */ };
+  const suggestInletType = async () => {
+    const qTotalNum = parseFloat(qTotal);
+    const gutterGradeNum = parseFloat(gutterGrade);
+
+    if (isNaN(qTotalNum) || qTotalNum <= 0 || isNaN(gutterGradeNum) ) {
+        displayMessage("Please ensure 'Q Total' is a positive value and 'Gutter Grade' is valid before suggesting an inlet type.");
+        return;
+    }
+    displayMessage('Getting inlet type suggestion from Gemini API...');
+    const prompt = `Given the following hydraulic parameters for a roadway storm drain inlet:
+    - Total Flow (Q Total) approaching the inlet: ${formatNumber(qTotalNum)} cfs
+    - Longitudinal Gutter Grade at inlet: ${formatNumber(gutterGradeNum)} %
+    - Calculated/Allowed Width of Flooding (Spread): ${formatNumber(widthOfFloodingOutput)} ft
+    - Is the inlet at a Low Point (Sag): ${isLowPoint ? 'Yes' : 'No'}
+    Based on typical civil engineering hydraulic design principles (e.g., from a hydraulics manual like LADOTD or HEC-22), suggest the most suitable *general type* of inlet from these options:
+    1.  **Curb-Opening Inlet (e.g., LADOTD CB-06 like)**: Good for continuous grades, less prone to clogging.
+    2.  **Grate Inlet (e.g., LADOTD CB-07 like)**: Efficient interception, but can clog.
+    3.  **Combination Inlet (Grate + Curb Opening, e.g., LADOTD CB-08 like)**: High capacity, good for sags or high flow.
+    Provide the suggested type and a brief (1-2 sentences) reasoning. Consider factors like flow rate, grade, and if it's a sag location.`;
+
+    try {
+      let chatHistory = [];
+      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+      const payload = { contents: chatHistory };
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+      if (!apiKey) {
+        displayMessage("Gemini API key is not configured. Please set VITE_GEMINI_API_KEY in your .env file for this feature.");
+      }
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: "Unknown API error" } }));
+        throw new Error(`API request failed with status ${response.status}: ${errorData.error?.message || response.statusText}`);
+      }
+      const result = await response.json();
+      if (result.candidates && result.candidates.length > 0 &&
+          result.candidates[0].content && result.candidates[0].content.parts &&
+          result.candidates[0].content.parts.length > 0) {
+        const text = result.candidates[0].content.parts[0].text;
+        displayMessage(`Gemini API Suggestion:\n\n${text}`);
+      } else {
+        let errorMessage = 'Failed to get a suggestion from Gemini API. The response was empty or malformed.';
+        if (result.promptFeedback && result.promptFeedback.blockReason) {
+            errorMessage += `\nReason: ${result.promptFeedback.blockReason}`;
+             if (result.promptFeedback.safetyRatings) {
+                errorMessage += `\nSafety Ratings: ${JSON.stringify(result.promptFeedback.safetyRatings)}`;
+            }
+        } else if (result.error) {
+            errorMessage += `\nError: ${result.error.message}`;
+        }
+        displayMessage(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error calling Gemini API:', error);
+      displayMessage(`An error occurred while fetching suggestion: ${error.message}. Check console for details.`);
+    }
+  };
 
   useEffect(() => {
     handleInletChange(index, { tc, intensity, qEnteringFromArea, qTotal, qi, qBypass, widthOfFloodingOutput, }, true);
   }, [tc, intensity, qEnteringFromArea, qTotal, qi, qBypass, widthOfFloodingOutput, index, handleInletChange]);
 
-
   return (
-    // Keeping InletInput's own card styling for now
-    <div className="p-4 sm:p-6 bg-gray-50 rounded-lg shadow-md mb-6 border border-gray-200">
+    <div className="p-4 sm:p-6 bg-gray-50 rounded-lg shadow-md mb-6 border border-gray-200"> {/* InletInput specific card styling */}
       <h3 className="text-lg sm:text-xl font-semibold text-blue-600 mb-4">Inlet {index + 1}</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-5"> {/* Increased gap-y */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-5">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Structure ID</label>
           <input type="text" name="strId" value={strId} onChange={(e) => handleInletChange(index, e)} className={formInputClasses} />
         </div>
         <div className="relative">
           <label className="block text-xs font-medium text-gray-600 mb-1">Structure Type</label>
-          <select name="structureType" value={structureType} onChange={(e) => handleInletChange(index, e)} className={`${formInputClasses} appearance-none`}>
+          <select name="structureType" value={structureType} onChange={(e) => handleInletChange(index, e)} className={`${formInputClasses} appearance-none pr-8`}>
             <option value="">Select Type</option>
             <option value="CB-06">CB-06 (Curb)</option>
             <option value="CB-07">CB-07 (Grate)</option>
@@ -546,8 +650,6 @@ const InletInput = ({ inlet, index, handleInletChange, removeInlet, rainfallRegi
           </select>
           <ChevronsUpDown className="absolute right-3 top-1/2 -translate-y-1/2 mt-1.5 h-4 w-4 text-gray-400 pointer-events-none" />
         </div>
-        {/* ... other input fields for InletInput, applying formInputClasses and label styling ... */}
-        {/* Example for one more: */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Station</label>
           <input type="number" step="any" name="station" value={station} onChange={(e) => handleInletChange(index, e)} className={formInputClasses}/>
@@ -611,7 +713,6 @@ const InletInput = ({ inlet, index, handleInletChange, removeInlet, rainfallRegi
 
       <div className="mt-6 pt-4 border-t border-gray-200">
         <h4 className="text-md sm:text-lg font-semibold text-gray-700 mb-3">Calculated Outputs for Inlet {index + 1}:</h4>
-        {/* ... Calculated outputs styled as before ... */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 text-sm">
           <div className="p-2 bg-gray-100 rounded-md"><span className="font-medium text-gray-600">TC:</span> {formatNumber(tc)} min</div>
           <div className="p-2 bg-gray-100 rounded-md"><span className="font-medium text-gray-600">Intensity:</span> {formatNumber(intensity)} in/hr</div>
@@ -624,7 +725,7 @@ const InletInput = ({ inlet, index, handleInletChange, removeInlet, rainfallRegi
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-end mt-6 space-y-2 sm:space-y-0 sm:space-x-3"> {/* Increased space */}
+      <div className="flex flex-col sm:flex-row justify-end mt-6 space-y-2 sm:space-y-0 sm:space-x-3">
         <button
           onClick={suggestInletType}
           className="flex items-center justify-center px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-300 text-sm font-medium transition-colors shadow-md hover:shadow-lg w-full sm:w-auto"
@@ -642,8 +743,91 @@ const InletInput = ({ inlet, index, handleInletChange, removeInlet, rainfallRegi
   );
 };
 
-// SummaryReport Component (already styled as a card internally)
-const SummaryReport = ({ profile, inlets, rainfallRegion, returnPeriod }) => { /* ...your component from previous code... */ };
+// Summary Report Component
+const SummaryReport = ({ profile, inlets, rainfallRegion, returnPeriod }) => {
+  return (
+    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8"> {/* Enhanced card styling */}
+      <h2 className="text-2xl font-semibold text-gray-800 mb-6 pb-3 border-b border-gray-200">3. Summary / Report</h2>
+      <div className="mb-6">
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-3">Profile Definition Summary</h3>
+        <p className="text-gray-700 text-sm"><strong>Beginning Grade:</strong> {formatNumber(parseFloat(profile.beginningGrade))} %</p>
+        <p className="text-gray-700 text-sm"><strong>Ending Grade:</strong> {formatNumber(parseFloat(profile.endingGrade))} %</p>
+        <h4 className="font-medium text-gray-700 mt-2 text-sm">PVI Points:</h4>
+        {profile.pvis.length === 0 ? (
+          <p className="text-gray-600 italic text-sm">No PVI points defined.</p>
+        ) : (
+          <ul className="list-disc list-inside ml-4 text-sm space-y-1">
+            {profile.pvis.map((pvi, index) => (
+              <li key={index} className="text-gray-700">
+                PVI {index + 1}: Sta {pvi.station}, Elev {formatNumber(parseFloat(pvi.elevation))}, Curve Len {formatNumber(parseFloat(pvi.length))} ft
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="mb-6 pt-4 border-t border-gray-200"> {/* Added border-top for separation */}
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-3">Rainfall Parameters</h3>
+        <p className="text-gray-700 text-sm"><strong>Rainfall Region:</strong> {rainfallRegion}</p>
+        <p className="text-gray-700 text-sm"><strong>Return Period:</strong> {returnPeriod}</p>
+      </div>
+
+      <div className="pt-4 border-t border-gray-200"> {/* Added border-top for separation */}
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-700 mb-3">Inlet Calculation Summary</h3>
+        {inlets.length === 0 ? (
+          <p className="text-gray-600 italic text-sm">No inlets defined.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-300 rounded-lg text-xs sm:text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-gray-600 uppercase text-xxs">
+                  <th className="py-2.5 px-3 border-b text-left font-semibold">Inlet #</th>
+                  <th className="py-2.5 px-3 border-b text-left font-semibold">ID</th>
+                  <th className="py-2.5 px-3 border-b text-left font-semibold">Type</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Sta</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">ΣAC</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">HL (ft)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">S Path (%)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Gutter S (%)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">TC (min)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Intensity (in/hr)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Q Enter (cfs)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Q Bypass Prev (cfs)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Q Total (cfs)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Qi (cfs)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Q Bypass Curr (cfs)</th>
+                  <th className="py-2.5 px-3 border-b text-right font-semibold">Spread (ft)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {inlets.map((inlet, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 text-gray-700">
+                    <td className="py-2.5 px-3 border-b text-left">{idx + 1}</td>
+                    <td className="py-2.5 px-3 border-b text-left">{inlet.strId}</td>
+                    <td className="py-2.5 px-3 border-b text-left">{inlet.structureType}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(parseFloat(inlet.station))}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(parseFloat(inlet.areaEnteringInlet))}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(parseFloat(inlet.longestFlowPath))}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(parseFloat(inlet.slopeOfFlowPath), 2)}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(parseFloat(inlet.gutterGrade), 2)}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(inlet.tc)}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(inlet.intensity)}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(inlet.qEnteringFromArea)}</td>
+                    <td className="py-2.5 px-3 border-b text-right">{formatNumber(idx > 0 ? inlets[idx - 1].qBypass : 0)}</td>
+                    <td className="py-2.5 px-3 border-b text-right font-semibold">{formatNumber(inlet.qTotal)}</td>
+                    <td className="py-2.5 px-3 border-b text-right font-semibold text-green-600">{formatNumber(inlet.qi)}</td>
+                    <td className="py-2.5 px-3 border-b text-right font-semibold text-red-600">{formatNumber(inlet.qBypass)}</td>
+                    <td className="py-2.5 px-3 border-b text-right font-semibold text-yellow-600">{formatNumber(inlet.widthOfFloodingOutput)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 
 const App = () => {
